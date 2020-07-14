@@ -27,8 +27,9 @@ def complex_scan_forward():
     return inp, out
 
 
-def generate_sdfg(name, n):
+def generate_sdfg(name):
     sdfg = dace.SDFG(name)
+    n = dace.symbol('n', dtype=dace.dtypes.int32)
 
     inp = sdfg.add_array('inp', (n, ), dace.dtypes.float64)
     out = sdfg.add_array('out', (n, ), dace.dtypes.float64)
@@ -149,12 +150,12 @@ def generate_sdfg(name, n):
 def test_raw_dace(complex_scan_forward):
     ref_inp, ref_out = complex_scan_forward
 
-    sdfg = generate_sdfg('raw_complex_scan_forward', ref_inp.size)
+    sdfg = generate_sdfg('raw_complex_scan_forward')
     compiled = sdfg.compile(optimizer=False)
 
     out = np.zeros_like(ref_out)
     buf = np.zeros_like(out)
-    compiled(inp=ref_inp, out=out, buf=buf)
+    compiled(inp=ref_inp, out=out, buf=buf, n=out.size)
 
     np.testing.assert_allclose(out, ref_out)
 
@@ -162,7 +163,7 @@ def test_raw_dace(complex_scan_forward):
 def test_transform(complex_scan_forward):
     ref_inp, ref_out = complex_scan_forward
 
-    sdfg = generate_sdfg('transformed_complex_scan_forward', ref_inp.size)
+    sdfg = generate_sdfg('transformed_complex_scan_forward')
 
     assert sdfg.apply_transformations(
         daceperiments.transforms.BasicRegisterCache,
@@ -170,10 +171,9 @@ def test_transform(complex_scan_forward):
         validate=True) == 1
 
     compiled = sdfg.compile(optimizer=False)
-    sdfg.save('test.sdfg')
 
     out = np.zeros_like(ref_out)
     buf = np.zeros_like(out, shape=(4, ))
-    compiled(inp=ref_inp, out=out, buf=buf)
+    compiled(inp=ref_inp, out=out, buf=buf, n=out.size)
 
     np.testing.assert_allclose(out, ref_out)

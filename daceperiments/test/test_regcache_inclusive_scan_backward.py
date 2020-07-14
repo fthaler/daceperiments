@@ -19,8 +19,9 @@ def inclusive_scan_backward():
     return inp, out
 
 
-def generate_sdfg(name, n):
+def generate_sdfg(name):
     sdfg = dace.SDFG(name)
+    n = dace.symbol('n', dtype=dace.dtypes.int32)
 
     inp = sdfg.add_array('inp', (n, ), dace.dtypes.float64)
     out = sdfg.add_array('out', (n, ), dace.dtypes.float64)
@@ -85,12 +86,12 @@ def generate_sdfg(name, n):
 def test_raw_dace(inclusive_scan_backward):
     ref_inp, ref_out = inclusive_scan_backward
 
-    sdfg = generate_sdfg('raw_inclusive_scan_backward', ref_inp.size)
+    sdfg = generate_sdfg('raw_inclusive_scan_backward')
     compiled = sdfg.compile(optimizer=False)
 
     out = np.zeros_like(ref_out)
     buf = np.zeros_like(out)
-    compiled(inp=ref_inp, out=out, buf=buf)
+    compiled(inp=ref_inp, out=out, buf=buf, n=out.size)
 
     np.testing.assert_allclose(out, ref_out)
 
@@ -98,7 +99,7 @@ def test_raw_dace(inclusive_scan_backward):
 def test_transform(inclusive_scan_backward):
     ref_inp, ref_out = inclusive_scan_backward
 
-    sdfg = generate_sdfg('transformed_inclusive_scan_backward', ref_inp.size)
+    sdfg = generate_sdfg('transformed_inclusive_scan_backward')
 
     assert sdfg.apply_transformations(
         daceperiments.transforms.BasicRegisterCache,
@@ -109,6 +110,6 @@ def test_transform(inclusive_scan_backward):
 
     out = np.zeros_like(ref_out)
     buf = np.zeros_like(out, shape=(2, ))
-    compiled(inp=ref_inp, out=out, buf=buf)
+    compiled(inp=ref_inp, out=out, buf=buf, n=out.size)
 
     np.testing.assert_allclose(out, ref_out)
