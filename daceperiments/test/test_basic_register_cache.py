@@ -5,7 +5,7 @@ import pytest
 
 
 @pytest.fixture()
-def inclusive_scan():
+def inclusive_scan_forward():
     n = 10
     inp = np.random.uniform(size=n)
     out = np.zeros_like(inp)
@@ -82,10 +82,10 @@ def generate_sdfg(name, n):
     return sdfg
 
 
-def test_raw_dace(inclusive_scan):
-    ref_inp, ref_out = inclusive_scan
+def test_raw_dace(inclusive_scan_forward):
+    ref_inp, ref_out = inclusive_scan_forward
 
-    sdfg = generate_sdfg('raw_inclusive_scan', ref_inp.size)
+    sdfg = generate_sdfg('raw_inclusive_scan_forward', ref_inp.size)
     compiled = sdfg.compile(optimizer=False)
 
     out = np.zeros_like(ref_out)
@@ -95,8 +95,8 @@ def test_raw_dace(inclusive_scan):
     np.testing.assert_allclose(out, ref_out)
 
 
-def test_expected(inclusive_scan):
-    ref_inp, ref_out = inclusive_scan
+def test_expected(inclusive_scan_forward):
+    ref_inp, ref_out = inclusive_scan_forward
     n = ref_inp.size
 
     sdfg = dace.SDFG('expected')
@@ -177,7 +177,6 @@ def test_expected(inclusive_scan):
                   loop_var='i')
 
     sdfg.validate()
-    sdfg.save('expected.sdfg')
 
     compiled = sdfg.compile(optimizer=False)
 
@@ -188,16 +187,15 @@ def test_expected(inclusive_scan):
     np.testing.assert_allclose(out, ref_out)
 
 
-def test_transform(inclusive_scan):
-    ref_inp, ref_out = inclusive_scan
+def test_transform(inclusive_scan_forward):
+    ref_inp, ref_out = inclusive_scan_forward
 
-    sdfg = generate_sdfg('transformed_inclusive_scan', ref_inp.size)
+    sdfg = generate_sdfg('transformed_inclusive_scan_forward', ref_inp.size)
 
     assert sdfg.apply_transformations(
         daceperiments.transforms.BasicRegisterCache,
         dict(array='buf'),
         validate=True) == 1
-    sdfg.save('test.sdfg')
 
     compiled = sdfg.compile(optimizer=False)
 
