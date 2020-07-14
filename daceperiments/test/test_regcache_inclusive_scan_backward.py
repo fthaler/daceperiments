@@ -41,11 +41,11 @@ def generate_sdfg(name):
         code='buf_write = inp_read; out_write = inp_read')
 
     before_state.add_edge(inp_read, None, tasklet, 'inp_read',
-                          dace.Memlet.simple('inp', subset_str=f'{n - 1}'))
+                          dace.Memlet.simple('inp', subset_str='n - 1'))
     before_state.add_edge(tasklet, 'out_write', out_write, None,
-                          dace.Memlet.simple('out', subset_str=f'{n - 1}'))
+                          dace.Memlet.simple('out', subset_str='n - 1'))
     before_state.add_edge(tasklet, 'buf_write', buf_write, None,
-                          dace.Memlet.simple('buf', subset_str=f'{n - 1}'))
+                          dace.Memlet.simple('buf', subset_str='n - 1'))
 
     # other iterations
     loop_state = sdfg.add_state()
@@ -74,9 +74,9 @@ def generate_sdfg(name):
     sdfg.add_loop(before_state=before_state,
                   loop_state=loop_state,
                   after_state=None,
-                  initialize_expr=f'{n - 2}',
+                  initialize_expr='n - 2',
                   increment_expr='i - 1',
-                  condition_expr=f'i >= 0',
+                  condition_expr='i >= 0',
                   loop_var='i')
 
     sdfg.validate()

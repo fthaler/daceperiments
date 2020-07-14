@@ -5,24 +5,24 @@ import pytest
 
 
 @pytest.fixture()
-def complex_scan_forward():
+def complex_scan_backward():
     n = 10
     inp = np.random.uniform(size=n)
     out = np.zeros_like(inp)
     buf = np.zeros_like(inp)
 
-    buf[0] = inp[0]
-    buf[1] = inp[0] / 2
-    out[0] = buf[0]
+    buf[n - 1] = inp[n - 1]
+    buf[n - 2] = inp[n - 1] / 2
+    out[n - 1] = buf[n - 1]
 
-    buf[2] = inp[1] / 2
-    out[1] = buf[1] + buf[0] / 4
+    buf[n - 3] = inp[n - 2] / 2
+    out[n - 2] = buf[n - 2] + buf[n - 1] / 4
 
-    for i in range(2, n - 1):
-        buf[i + 1] = inp[i] / 2
-        out[i] = buf[i] + buf[i - 1] / 4 + buf[i - 2] / 8
+    for i in range(n - 3, 0, -1):
+        buf[i - 1] = inp[i] / 2
+        out[i] = buf[i] + buf[i + 1] / 4 + buf[i + 2] / 8
 
-    out[n - 1] = buf[n - 1] + buf[n - 2] / 4 + buf[n - 3] / 8
+    out[0] = buf[0] + buf[1] / 4 + buf[2] / 8
 
     return inp, out
 
@@ -51,13 +51,13 @@ def generate_sdfg(name):
     )
 
     before_state.add_edge(inp_read, None, tasklet, 'inp_read',
-                          dace.Memlet.simple('inp', subset_str='0'))
+                          dace.Memlet.simple('inp', subset_str='n - 1'))
     before_state.add_edge(tasklet, 'out_write', out_write, None,
-                          dace.Memlet.simple('out', subset_str='0'))
+                          dace.Memlet.simple('out', subset_str='n - 1'))
     before_state.add_edge(tasklet, 'buf_write_0', buf_write, None,
-                          dace.Memlet.simple('buf', subset_str='0'))
+                          dace.Memlet.simple('buf', subset_str='n - 1'))
     before_state.add_edge(tasklet, 'buf_write_1', buf_write, None,
-                          dace.Memlet.simple('buf', subset_str='1'))
+                          dace.Memlet.simple('buf', subset_str='n - 2'))
 
     # second iteration
     before_state = sdfg.add_state_after(before_state)
@@ -75,15 +75,15 @@ def generate_sdfg(name):
     )
 
     before_state.add_edge(inp_read, None, tasklet, 'inp_read',
-                          dace.Memlet.simple('inp', subset_str='1'))
+                          dace.Memlet.simple('inp', subset_str='n - 2'))
     before_state.add_edge(buf_read, None, tasklet, 'buf_read_0',
-                          dace.Memlet.simple('buf', subset_str='0'))
+                          dace.Memlet.simple('buf', subset_str='n - 1'))
     before_state.add_edge(buf_read, None, tasklet, 'buf_read_1',
-                          dace.Memlet.simple('buf', subset_str='1'))
+                          dace.Memlet.simple('buf', subset_str='n - 2'))
     before_state.add_edge(tasklet, 'out_write', out_write, None,
-                          dace.Memlet.simple('out', subset_str='1'))
+                          dace.Memlet.simple('out', subset_str='n - 2'))
     before_state.add_edge(tasklet, 'buf_write', buf_write, None,
-                          dace.Memlet.simple('buf', subset_str='2'))
+                          dace.Memlet.simple('buf', subset_str='n - 3'))
 
     # other iterations
     loop_state = sdfg.add_state()
@@ -103,15 +103,15 @@ def generate_sdfg(name):
     loop_state.add_edge(inp_read, None, tasklet, 'inp_read',
                         dace.Memlet.simple('inp', subset_str='i'))
     loop_state.add_edge(buf_read, None, tasklet, 'buf_read_0',
-                        dace.Memlet.simple('buf', subset_str='i - 2'))
+                        dace.Memlet.simple('buf', subset_str='i + 2'))
     loop_state.add_edge(buf_read, None, tasklet, 'buf_read_1',
-                        dace.Memlet.simple('buf', subset_str='i - 1'))
+                        dace.Memlet.simple('buf', subset_str='i + 1'))
     loop_state.add_edge(buf_read, None, tasklet, 'buf_read_2',
                         dace.Memlet.simple('buf', subset_str='i'))
     loop_state.add_edge(tasklet, 'out_write', out_write, None,
                         dace.Memlet.simple('out', subset_str='i'))
     loop_state.add_edge(tasklet, 'buf_write', buf_write, None,
-                        dace.Memlet.simple('buf', subset_str='i + 1'))
+                        dace.Memlet.simple('buf', subset_str='i - 1'))
 
     # last iteration
     after_state = sdfg.add_state()
@@ -126,31 +126,31 @@ def generate_sdfg(name):
         code='out_write = buf_read_2 + buf_read_1 / 4 + buf_read_0 / 8')
 
     after_state.add_edge(buf_read, None, tasklet, 'buf_read_0',
-                         dace.Memlet.simple('buf', subset_str='n - 3'))
+                         dace.Memlet.simple('buf', subset_str='2'))
     after_state.add_edge(buf_read, None, tasklet, 'buf_read_1',
-                         dace.Memlet.simple('buf', subset_str='n - 2'))
+                         dace.Memlet.simple('buf', subset_str='1'))
     after_state.add_edge(buf_read, None, tasklet, 'buf_read_2',
-                         dace.Memlet.simple('buf', subset_str='n - 1'))
+                         dace.Memlet.simple('buf', subset_str='0'))
     after_state.add_edge(tasklet, 'out_write', out_write, None,
-                         dace.Memlet.simple('out', subset_str='n - 1'))
+                         dace.Memlet.simple('out', subset_str='0'))
 
     # loop
     sdfg.add_loop(before_state=before_state,
                   loop_state=loop_state,
                   after_state=after_state,
-                  initialize_expr='2',
-                  increment_expr='i + 1',
-                  condition_expr='i < n - 1',
+                  initialize_expr='n - 3',
+                  increment_expr='i - 1',
+                  condition_expr='i > 0',
                   loop_var='i')
 
     sdfg.validate()
     return sdfg
 
 
-def test_raw_dace(complex_scan_forward):
-    ref_inp, ref_out = complex_scan_forward
+def test_raw_dace(complex_scan_backward):
+    ref_inp, ref_out = complex_scan_backward
 
-    sdfg = generate_sdfg('raw_complex_scan_forward')
+    sdfg = generate_sdfg('raw_complex_scan_backward')
     compiled = sdfg.compile(optimizer=False)
 
     out = np.zeros_like(ref_out)
@@ -160,10 +160,10 @@ def test_raw_dace(complex_scan_forward):
     np.testing.assert_allclose(out, ref_out)
 
 
-def test_transform(complex_scan_forward):
-    ref_inp, ref_out = complex_scan_forward
+def test_transform(complex_scan_backward):
+    ref_inp, ref_out = complex_scan_backward
 
-    sdfg = generate_sdfg('transformed_complex_scan_forward')
+    sdfg = generate_sdfg('transformed_complex_scan_backward')
 
     assert sdfg.apply_transformations(
         daceperiments.transforms.BasicRegisterCache,

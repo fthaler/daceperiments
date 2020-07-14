@@ -76,7 +76,7 @@ def generate_sdfg(name):
                   after_state=None,
                   initialize_expr='1',
                   increment_expr='i + 1',
-                  condition_expr=f'i < {n}',
+                  condition_expr='i < n',
                   loop_var='i')
 
     sdfg.validate()
