@@ -38,9 +38,9 @@ class BasicRegisterCache(Transformation):
                         and dst.data == self.array):
                     yield edge.data
 
-    def _get_buffer_size(self, states, loop_var):
+    def _get_buffer_size(self, state, loop_var):
         min_offset, max_offset = 1000, -1000
-        for memlet in self._buffer_memlets(states):
+        for memlet in self._buffer_memlets([state]):
             rb, re, _ = memlet.subset.ranges[0]
             rb_offset = rb - symbolic.symbol(loop_var)
             re_offset = re - symbolic.symbol(loop_var)
@@ -59,8 +59,7 @@ class BasicRegisterCache(Transformation):
         guard_state = sdfg.node(self.subgraph[self._guard_state])
         loop_var = next(iter(sdfg.in_edges(guard_state)[0].data.assignments))
 
-        buffer_size = self._get_buffer_size([loop_state], loop_var)
-        self._replace_indices([before_state, loop_state], loop_var,
-                              buffer_size)
+        buffer_size = self._get_buffer_size(loop_state, loop_var)
+        self._replace_indices(sdfg.states(), loop_var, buffer_size)
 
         sdfg.arrays[self.array].shape = (buffer_size, )
