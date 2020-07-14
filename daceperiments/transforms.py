@@ -38,7 +38,7 @@ class BasicRegisterCache(Transformation):
                         and dst.data == self.array):
                     yield edge.data
 
-    def _get_offsets(self, states, loop_var):
+    def _get_buffer_size(self, states, loop_var):
         min_offset, max_offset = 1000, -1000
         for memlet in self._buffer_memlets(states):
             rb, re, _ = memlet.subset.ranges[0]
@@ -46,10 +46,9 @@ class BasicRegisterCache(Transformation):
             re_offset = re - symbolic.symbol(loop_var)
             min_offset = min(min_offset, rb_offset, re_offset)
             max_offset = max(max_offset, rb_offset, re_offset)
-        return min_offset, max_offset
+        return max_offset - min_offset + 1
 
-    def _replace_indices(self, states, loop_var, min_offset, max_offset):
-        buffer_size = max_offset - min_offset + 1
+    def _replace_indices(self, states, loop_var, buffer_size):
         for memlet in self._buffer_memlets(states):
             memlet.subset.ranges = [(rb % buffer_size, re % buffer_size, rs)
                                     for rb, re, rs in memlet.subset.ranges]
@@ -60,8 +59,8 @@ class BasicRegisterCache(Transformation):
         guard_state = sdfg.node(self.subgraph[self._guard_state])
         loop_var = next(iter(sdfg.in_edges(guard_state)[0].data.assignments))
 
-        min_offset, max_offset = self._get_offsets([loop_state], loop_var)
-        self._replace_indices([before_state, loop_state], loop_var, min_offset,
-                              max_offset)
+        buffer_size = self._get_buffer_size([loop_state], loop_var)
+        self._replace_indices([before_state, loop_state], loop_var,
+                              buffer_size)
 
-        sdfg.arrays[self.array].shape = (max_offset - min_offset + 1, )
+        sdfg.arrays[self.array].shape = (buffer_size, )
