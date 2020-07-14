@@ -40,11 +40,11 @@ def generate_sdfg(name, n):
         code='buf_write = inp_read; out_write = inp_read')
 
     before_state.add_edge(inp_read, None, tasklet, 'inp_read',
-                          dace.Memlet.simple('inp', subset_str='i'))
+                          dace.Memlet.simple('inp', subset_str=f'{n - 1}'))
     before_state.add_edge(tasklet, 'out_write', out_write, None,
-                          dace.Memlet.simple('out', subset_str='i'))
+                          dace.Memlet.simple('out', subset_str=f'{n - 1}'))
     before_state.add_edge(tasklet, 'buf_write', buf_write, None,
-                          dace.Memlet.simple('buf', subset_str='i'))
+                          dace.Memlet.simple('buf', subset_str=f'{n - 1}'))
 
     # other iterations
     loop_state = sdfg.add_state()
@@ -73,7 +73,7 @@ def generate_sdfg(name, n):
     sdfg.add_loop(before_state=before_state,
                   loop_state=loop_state,
                   after_state=None,
-                  initialize_expr=f'{n - 1}',
+                  initialize_expr=f'{n - 2}',
                   increment_expr='i - 1',
                   condition_expr=f'i >= 0',
                   loop_var='i')
@@ -90,6 +90,25 @@ def test_raw_dace(inclusive_scan_backward):
 
     out = np.zeros_like(ref_out)
     buf = np.zeros_like(out)
+    compiled(inp=ref_inp, out=out, buf=buf)
+
+    np.testing.assert_allclose(out, ref_out)
+
+
+def test_transform(inclusive_scan_backward):
+    ref_inp, ref_out = inclusive_scan_backward
+
+    sdfg = generate_sdfg('transformed_inclusive_scan_backward', ref_inp.size)
+
+    assert sdfg.apply_transformations(
+        daceperiments.transforms.BasicRegisterCache,
+        dict(array='buf'),
+        validate=True) == 1
+
+    compiled = sdfg.compile(optimizer=False)
+
+    out = np.zeros_like(ref_out)
+    buf = np.zeros_like(out, shape=(2, ))
     compiled(inp=ref_inp, out=out, buf=buf)
 
     np.testing.assert_allclose(out, ref_out)

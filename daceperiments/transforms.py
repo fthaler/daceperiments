@@ -48,22 +48,11 @@ class BasicRegisterCache(Transformation):
             max_offset = max(max_offset, rb_offset, re_offset)
         return min_offset, max_offset
 
-    def _make_indices_absolute(self, states, loop_var, min_offset):
+    def _replace_indices(self, states, loop_var, min_offset, max_offset):
+        buffer_size = max_offset - min_offset + 1
         for memlet in self._buffer_memlets(states):
-            memlet.subset.replace({symbolic.symbol(loop_var): -min_offset})
-
-    def _insert_shift_after(self, sdfg, states, min_offset, max_offset):
-        for state in states:
-            shift_state = sdfg.add_state_after(state)
-            buf_read = shift_state.add_read(self.array)
-            buf_write = shift_state.add_write(self.array)
-
-            shift_state.add_edge(
-                buf_read, None, buf_write, None,
-                dace.Memlet.simple(
-                    self.array,
-                    subset_str=f'1:{max_offset - min_offset + 1}',
-                    other_subset_str=f'0:{max_offset - min_offset}'))
+            memlet.subset.ranges = [(rb % buffer_size, re % buffer_size, rs)
+                                    for rb, re, rs in memlet.subset.ranges]
 
     def apply(self, sdfg: dace.SDFG):
         before_state = sdfg.node(self.subgraph[self._before_state])
@@ -71,11 +60,8 @@ class BasicRegisterCache(Transformation):
         guard_state = sdfg.node(self.subgraph[self._guard_state])
         loop_var = next(iter(sdfg.in_edges(guard_state)[0].data.assignments))
 
-        compute_states = [before_state, loop_state]
-
-        min_offset, max_offset = self._get_offsets(compute_states, loop_var)
-        self._make_indices_absolute(compute_states, loop_var, min_offset)
+        min_offset, max_offset = self._get_offsets([loop_state], loop_var)
+        self._replace_indices([before_state, loop_state], loop_var, min_offset,
+                              max_offset)
 
         sdfg.arrays[self.array].shape = (max_offset - min_offset + 1, )
-
-        self._insert_shift_after(sdfg, compute_states, min_offset, max_offset)

@@ -121,9 +121,9 @@ def test_expected(inclusive_scan_forward):
         code='buf_write = inp_read; out_write = inp_read')
 
     before_state.add_edge(inp_read, None, tasklet, 'inp_read',
-                          dace.Memlet.simple('inp', subset_str='i'))
+                          dace.Memlet.simple('inp', subset_str='0'))
     before_state.add_edge(tasklet, 'out_write', out_write, None,
-                          dace.Memlet.simple('out', subset_str='i'))
+                          dace.Memlet.simple('out', subset_str='0'))
     before_state.add_edge(tasklet, 'buf_write', buf_write, None,
                           dace.Memlet.simple('buf', subset_str='1'))
 
