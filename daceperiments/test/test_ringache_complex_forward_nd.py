@@ -43,44 +43,31 @@ def generate_sdfg(name):
 
     inp = sdfg.add_array('inp', (nx, ny, nz), dace.dtypes.float64)
     out = sdfg.add_array('out', (nx, ny, nz), dace.dtypes.float64)
-    buf = sdfg.add_array('buf', (nx, ny, nz), dace.dtypes.float64)
 
     state = sdfg.add_state(is_start_state=True)
 
     inp_read = state.add_read('inp')
-    buf_read = state.add_read('buf')
     out_write = state.add_write('out')
-    buf_write = state.add_write('buf')
 
     nested_tasklet = state.add_nested_sdfg(nested_sdfg,
                                            sdfg,
-                                           inputs={'inp', 'buf'},
-                                           outputs={'out', 'buf'})
+                                           inputs={'inp'},
+                                           outputs={'out'})
     map_entry, map_exit = state.add_map('map',
                                         ndrange=dict(i='0:nx', k='0:nz'))
+    map_entry.map.collapse = 2
+
     state.add_memlet_path(inp_read,
                           map_entry,
                           nested_tasklet,
                           dst_conn='inp',
                           memlet=dace.Memlet.simple('inp',
                                                     subset_str='i, 0:ny, k'))
-    state.add_memlet_path(buf_read,
-                          map_entry,
-                          nested_tasklet,
-                          dst_conn='buf',
-                          memlet=dace.Memlet.simple('buf',
-                                                    subset_str='i, 0:ny, k'))
     state.add_memlet_path(nested_tasklet,
                           map_exit,
                           out_write,
                           src_conn='out',
                           memlet=dace.Memlet.simple('out',
-                                                    subset_str='i, 0:ny, k'))
-    state.add_memlet_path(nested_tasklet,
-                          map_exit,
-                          buf_write,
-                          src_conn='buf',
-                          memlet=dace.Memlet.simple('buf',
                                                     subset_str='i, 0:ny, k'))
 
     inp = nested_sdfg.add_array('inp', (ny, ),
@@ -89,9 +76,7 @@ def generate_sdfg(name):
     out = nested_sdfg.add_array('out', (ny, ),
                                 dace.dtypes.float64,
                                 strides=out[1].strides[1:2])
-    buf = nested_sdfg.add_array('buf', (ny, ),
-                                dace.dtypes.float64,
-                                strides=buf[1].strides[1:2])
+    buf = nested_sdfg.add_transient('buf', (ny, ), dace.dtypes.float64)
 
     # initial iteration
     before_state = nested_sdfg.add_state(is_start_state=True)
@@ -212,10 +197,8 @@ def test_raw_dace(complex_scan_forward_nd):
     compiled = sdfg.compile(optimizer=False)
 
     out = np.zeros_like(ref_out)
-    buf = np.zeros_like(out)
     compiled(inp=ref_inp,
              out=out,
-             buf=buf,
              nx=out.shape[0],
              ny=out.shape[1],
              nz=out.shape[2])
@@ -238,10 +221,8 @@ def test_transform(complex_scan_forward_nd):
     compiled = sdfg.compile(optimizer=False)
 
     out = np.zeros_like(ref_out)
-    buf = np.zeros_like(out)
     compiled(inp=ref_inp,
              out=out,
-             buf=buf,
              nx=out.shape[0],
              ny=out.shape[1],
              nz=out.shape[2])

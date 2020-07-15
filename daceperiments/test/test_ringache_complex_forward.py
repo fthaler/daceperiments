@@ -33,7 +33,7 @@ def generate_sdfg(name):
 
     inp = sdfg.add_array('inp', (n, ), dace.dtypes.float64)
     out = sdfg.add_array('out', (n, ), dace.dtypes.float64)
-    buf = sdfg.add_array('buf', (n, ), dace.dtypes.float64)
+    buf = sdfg.add_transient('buf', (n, ), dace.dtypes.float64)
 
     # initial iteration
     before_state = sdfg.add_state(is_start_state=True)
@@ -154,8 +154,7 @@ def test_raw_dace(complex_scan_forward):
     compiled = sdfg.compile(optimizer=False)
 
     out = np.zeros_like(ref_out)
-    buf = np.zeros_like(out)
-    compiled(inp=ref_inp, out=out, buf=buf, n=out.size)
+    compiled(inp=ref_inp, out=out, n=out.size)
 
     np.testing.assert_allclose(out, ref_out)
 
@@ -173,7 +172,6 @@ def test_transform(complex_scan_forward):
     compiled = sdfg.compile(optimizer=False)
 
     out = np.zeros_like(ref_out)
-    buf = np.zeros_like(out, shape=(4, ))
-    compiled(inp=ref_inp, out=out, buf=buf, n=out.size)
+    compiled(inp=ref_inp, out=out, n=out.size)
 
     np.testing.assert_allclose(out, ref_out)

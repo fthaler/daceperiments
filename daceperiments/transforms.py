@@ -61,3 +61,6 @@ class BasicRegisterCache(Transformation):
 
         buffer_size = self._get_buffer_size(loop_state, loop_var)
         self._replace_indices(sdfg.states(), loop_var, buffer_size)
+
+        sdfg.arrays[self.array].shape = (buffer_size, )
+        sdfg.arrays[self.array].total_size = buffer_size
