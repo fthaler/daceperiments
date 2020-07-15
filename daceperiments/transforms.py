@@ -41,6 +41,7 @@ class BasicRegisterCache(Transformation):
     def _get_buffer_size(self, state, loop_var):
         min_offset, max_offset = 1000, -1000
         for memlet in self._buffer_memlets([state]):
+            assert len(memlet.subset.ranges) == 1
             rb, re, _ = memlet.subset.ranges[0]
             rb_offset = rb - symbolic.symbol(loop_var)
             re_offset = re - symbolic.symbol(loop_var)
@@ -50,6 +51,7 @@ class BasicRegisterCache(Transformation):
 
     def _replace_indices(self, states, loop_var, buffer_size):
         for memlet in self._buffer_memlets(states):
+            assert len(memlet.subset.ranges) == 1
             memlet.subset.ranges = [(rb % buffer_size, re % buffer_size, rs)
                                     for rb, re, rs in memlet.subset.ranges]
 
