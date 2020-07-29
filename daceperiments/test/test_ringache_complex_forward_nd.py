@@ -218,8 +218,6 @@ def test_transform(complex_scan_forward_nd):
         dict(array='buf'),
         validate=True) == 1
 
-    sdfg.save('test.sdfg')
-
     compiled = sdfg.compile(optimizer=False)
 
     out = np.zeros_like(ref_out)
