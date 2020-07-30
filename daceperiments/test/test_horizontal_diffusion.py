@@ -104,9 +104,8 @@ def generate_sdfg(name='hdiff'):
         'flx_tasklet',
         inputs={'inp_ij', 'inp_ip1j', 'lap_ij', 'lap_ip1j'},
         outputs={'flx_ij'},
-        code=
-        'flx_ij = lap_ip1j - lap_ij\nif flx_ij * (inp_ip1j - inp_ij) > 0: flx_ij = 0'
-    )
+        code='flx_ij = lap_ip1j - lap_ij\n'
+        'if flx_ij * (inp_ip1j - inp_ij) > 0: flx_ij = 0')
 
     flx_map_entry.add_in_connector('IN_inp')
     flx_map_entry.add_in_connector('IN_lap')
@@ -144,9 +143,8 @@ def generate_sdfg(name='hdiff'):
         'fly_tasklet',
         inputs={'inp_ij', 'inp_ijp1', 'lap_ij', 'lap_ijp1'},
         outputs={'fly_ij'},
-        code=
-        'fly_ij = lap_ijp1 - lap_ij\nif fly_ij * (inp_ijp1 - inp_ij) > 0: fly_ij = 0'
-    )
+        code='fly_ij = lap_ijp1 - lap_ij\n'
+        'if fly_ij * (inp_ijp1 - inp_ij) > 0: fly_ij = 0')
 
     fly_map_entry.add_in_connector('IN_inp')
     fly_map_entry.add_in_connector('IN_lap')
@@ -300,9 +298,8 @@ def generate_sdfg_flx_on_the_fly(name='hdiff_flx_on_the_fly'):
         'fly_tasklet',
         inputs={'inp_ij', 'inp_ijp1', 'lap_ij', 'lap_ijp1'},
         outputs={'fly_ij'},
-        code=
-        'fly_ij = lap_ijp1 - lap_ij\nif fly_ij * (inp_ijp1 - inp_ij) > 0: fly_ij = 0'
-    )
+        code='fly_ij = lap_ijp1 - lap_ij\n'
+        'if fly_ij * (inp_ijp1 - inp_ij) > 0: fly_ij = 0')
 
     fly_map_entry.add_in_connector('IN_inp')
     fly_map_entry.add_in_connector('IN_lap')
@@ -336,79 +333,31 @@ def generate_sdfg_flx_on_the_fly(name='hdiff_flx_on_the_fly'):
                                                 ndrange=dict(i='1:nx-1',
                                                              j='1:ny-1',
                                                              k='0:nz'))
-
-    nested_sdfg = dace.SDFG(f'nested_{name}')
-    nested_tasklet = state.add_nested_sdfg(nested_sdfg,
-                                           sdfg,
-                                           inputs={
-                                               'inp_ij', 'coeff_ij',
-                                               'fly_ijm1', 'fly_ij',
-                                               'inp_ip1j', 'inp_im1j',
-                                               'lap_ij', 'lap_ip1j', 'lap_im1j'
-                                           },
-                                           outputs={'out_ij'})
-
-    out_map_entry.add_in_connector('IN_inp')
-    out_map_entry.add_in_connector('IN_coeff')
-    out_map_entry.add_in_connector('IN_lap')
-    out_map_entry.add_in_connector('IN_fly')
-    state.add_edge(inp_read, None, out_map_entry, 'IN_inp',
-                   dace.Memlet.simple('inp', '1:nx, 1:ny, 0:nz'))
-    state.add_edge(coeff_read, None, out_map_entry, 'IN_coeff',
-                   dace.Memlet.simple('coeff', '1:nx, 1:ny, 0:nz'))
-    state.add_edge(lap_access, None, out_map_entry, 'IN_lap',
-                   dace.Memlet.simple('lap', '1:nx, 0:ny, 0:nz'))
-    state.add_edge(fly_access, None, out_map_entry, 'IN_fly',
-                   dace.Memlet.simple('fly', '0:nx, 1:ny, 0:nz'))
-
-    out_map_entry.add_out_connector('OUT_inp')
-    out_map_entry.add_out_connector('OUT_coeff')
-    out_map_entry.add_out_connector('OUT_lap')
-    out_map_entry.add_out_connector('OUT_fly')
-    state.add_edge(out_map_entry, 'OUT_inp', nested_tasklet, 'inp_im1j',
-                   dace.Memlet.simple('inp', subset_str='i-1, j, k'))
-    state.add_edge(out_map_entry, 'OUT_inp', nested_tasklet, 'inp_ij',
-                   dace.Memlet.simple('inp', subset_str='i, j, k'))
-    state.add_edge(out_map_entry, 'OUT_inp', nested_tasklet, 'inp_ip1j',
-                   dace.Memlet.simple('inp', subset_str='i+1, j, k'))
-    state.add_edge(out_map_entry, 'OUT_coeff', nested_tasklet, 'coeff_ij',
-                   dace.Memlet.simple('coeff', subset_str='i, j, k'))
-    state.add_edge(out_map_entry, 'OUT_fly', nested_tasklet, 'fly_ij',
-                   dace.Memlet.simple('fly', subset_str='i, j, k'))
-    state.add_edge(out_map_entry, 'OUT_fly', nested_tasklet, 'fly_ijm1',
-                   dace.Memlet.simple('fly', subset_str='i, j-1, k'))
-    state.add_edge(out_map_entry, 'OUT_lap', nested_tasklet, 'lap_im1j',
-                   dace.Memlet.simple('lap', subset_str='i-1, j, k'))
-    state.add_edge(out_map_entry, 'OUT_lap', nested_tasklet, 'lap_ij',
-                   dace.Memlet.simple('lap', subset_str='i, j, k'))
-    state.add_edge(out_map_entry, 'OUT_lap', nested_tasklet, 'lap_ip1j',
-                   dace.Memlet.simple('lap', subset_str='i+1, j, k'))
-
-    nested_state = nested_sdfg.add_state()
-
-    flx_ij_tasklet = nested_state.add_tasklet(
+    flx_ij_tasklet = state.add_tasklet(
         'flx_ij_tasklet',
         inputs={
             'flx_ij_tasklet_inp_ij', 'flx_ij_tasklet_inp_ip1j',
             'flx_ij_tasklet_lap_ij', 'flx_ij_tasklet_lap_ip1j'
         },
         outputs={'flx_ij_tasklet_flx_ij'},
-        code=
-        'flx_ij_tasklet_flx_ij = flx_ij_tasklet_lap_ip1j - flx_ij_tasklet_lap_ij\nif flx_ij_tasklet_flx_ij * (flx_ij_tasklet_inp_ip1j - flx_ij_tasklet_inp_ij) > 0: flx_ij_tasklet_flx_ij = 0'
-    )
-
-    flx_im1j_tasklet = nested_state.add_tasklet(
+        code='flx_ij_tasklet_flx_ij = '
+        'flx_ij_tasklet_lap_ip1j - flx_ij_tasklet_lap_ij\n'
+        'if flx_ij_tasklet_flx_ij * '
+        '(flx_ij_tasklet_inp_ip1j - flx_ij_tasklet_inp_ij) > 0:\n'
+        '    flx_ij_tasklet_flx_ij = 0')
+    flx_im1j_tasklet = state.add_tasklet(
         'flx_im1j_tasklet',
         inputs={
-            'flx_im1j_tasklet_inp_im1j', 'flx_im1j_tasklet_inp_ij',
-            'flx_im1j_tasklet_lap_im1j', 'flx_im1j_tasklet_lap_ij'
+            'flx_im1j_tasklet_inp_ij', 'flx_im1j_tasklet_inp_ip1j',
+            'flx_im1j_tasklet_lap_ij', 'flx_im1j_tasklet_lap_ip1j'
         },
-        outputs={'flx_im1j_tasklet_flx_im1j'},
-        code=
-        'flx_im1j_tasklet_flx_im1j = flx_im1j_tasklet_lap_ij - flx_im1j_tasklet_lap_im1j\nif flx_im1j_tasklet_flx_im1j * (flx_im1j_tasklet_inp_ij - flx_im1j_tasklet_inp_im1j) > 0: flx_im1j_tasklet_flx_im1j = 0'
-    )
-
-    tasklet = nested_state.add_tasklet(
+        outputs={'flx_im1j_tasklet_flx_ij'},
+        code='flx_im1j_tasklet_flx_ij = '
+        'flx_im1j_tasklet_lap_ip1j - flx_im1j_tasklet_lap_ij\n'
+        'if flx_im1j_tasklet_flx_ij * '
+        '(flx_im1j_tasklet_inp_ip1j - flx_im1j_tasklet_inp_ij) > 0:\n'
+        '    flx_im1j_tasklet_flx_ij = 0')
+    tasklet = state.add_tasklet(
         'out_tasklet',
         inputs={
             'out_tasklet_inp_ij', 'out_tasklet_coeff_ij',
@@ -416,42 +365,86 @@ def generate_sdfg_flx_on_the_fly(name='hdiff_flx_on_the_fly'):
             'out_tasklet_fly_ijm1', 'out_tasklet_fly_ij'
         },
         outputs={'out_tasklet_out_ij'},
-        code=
-        'out_tasklet_out_ij = out_tasklet_inp_ij - out_tasklet_coeff_ij * (out_tasklet_flx_ij - out_tasklet_flx_im1j + out_tasklet_fly_ij - out_tasklet_fly_ijm1)'
-    )
+        code='out_tasklet_out_ij = out_tasklet_inp_ij - out_tasklet_coeff_ij * '
+        '(out_tasklet_flx_ij - out_tasklet_flx_im1j + '
+        'out_tasklet_fly_ij - out_tasklet_fly_ijm1)')
 
-    accesses = dict()
-    for inp in nested_tasklet.in_connectors:
-        nested_sdfg.add_scalar(inp, dace.dtypes.float64)
-        accesses[inp] = nested_state.add_read(inp)
-    for out in nested_tasklet.out_connectors:
-        nested_sdfg.add_scalar(out, dace.dtypes.float64)
-        accesses[out] = nested_state.add_write(out)
-    for tmp in ['flx_ij', 'flx_im1j']:
-        nested_sdfg.add_scalar(tmp, dace.dtypes.float64, transient=True)
-        accesses[tmp] = nested_state.add_access(tmp)
+    out_map_entry.add_in_connector('IN_inp')
+    out_map_entry.add_in_connector('IN_coeff')
+    out_map_entry.add_in_connector('IN_lap')
+    out_map_entry.add_in_connector('IN_fly')
+    state.add_edge(inp_read, None, out_map_entry, 'IN_inp',
+                   dace.Memlet.simple('inp', '0:nx, 1:ny, 0:nz'))
+    state.add_edge(coeff_read, None, out_map_entry, 'IN_coeff',
+                   dace.Memlet.simple('coeff', '1:nx, 1:ny, 0:nz'))
+    state.add_edge(lap_access, None, out_map_entry, 'IN_lap',
+                   dace.Memlet.simple('lap', '0:nx, 0:ny, 0:nz'))
+    state.add_edge(fly_access, None, out_map_entry, 'IN_fly',
+                   dace.Memlet.simple('fly', '0:nx, 1:ny, 0:nz'))
 
-    for t in (flx_im1j_tasklet, flx_ij_tasklet, tasklet):
-        for inp in t.in_connectors:
-            acc = inp[len(t.name) + 1:]
-            nested_state.add_edge(accesses[acc], None, t, inp,
-                                  dace.Memlet(acc))
-        for out in t.out_connectors:
-            acc = out[len(t.name) + 1:]
-            nested_state.add_edge(t, out, accesses[acc], None,
-                                  dace.Memlet(acc))
+    out_map_entry.add_out_connector('OUT_inp')
+    out_map_entry.add_out_connector('OUT_coeff')
+    out_map_entry.add_out_connector('OUT_lap')
+    out_map_entry.add_out_connector('OUT_fly')
+    state.add_edge(out_map_entry, 'OUT_inp', tasklet, 'out_tasklet_inp_ij',
+                   dace.Memlet.simple('inp', subset_str='i, j, k'))
+    state.add_edge(out_map_entry, 'OUT_coeff', tasklet, 'out_tasklet_coeff_ij',
+                   dace.Memlet.simple('coeff', subset_str='i, j, k'))
+    state.add_edge(out_map_entry, 'OUT_fly', tasklet, 'out_tasklet_fly_ij',
+                   dace.Memlet.simple('fly', subset_str='i, j, k'))
+    state.add_edge(out_map_entry, 'OUT_fly', tasklet, 'out_tasklet_fly_ijm1',
+                   dace.Memlet.simple('fly', subset_str='i, j-1, k'))
+
+    state.add_edge(out_map_entry, 'OUT_inp', flx_ij_tasklet,
+                   'flx_ij_tasklet_inp_ij',
+                   dace.Memlet.simple('inp', subset_str='i, j, k'))
+    state.add_edge(out_map_entry, 'OUT_inp', flx_ij_tasklet,
+                   'flx_ij_tasklet_inp_ip1j',
+                   dace.Memlet.simple('inp', subset_str='i+1, j, k'))
+    state.add_edge(out_map_entry, 'OUT_lap', flx_ij_tasklet,
+                   'flx_ij_tasklet_lap_ij',
+                   dace.Memlet.simple('lap', subset_str='i, j, k'))
+    state.add_edge(out_map_entry, 'OUT_lap', flx_ij_tasklet,
+                   'flx_ij_tasklet_lap_ip1j',
+                   dace.Memlet.simple('lap', subset_str='i+1, j, k'))
+
+    state.add_edge(out_map_entry, 'OUT_inp', flx_im1j_tasklet,
+                   'flx_im1j_tasklet_inp_ij',
+                   dace.Memlet.simple('inp', subset_str='i-1, j, k'))
+    state.add_edge(out_map_entry, 'OUT_inp', flx_im1j_tasklet,
+                   'flx_im1j_tasklet_inp_ip1j',
+                   dace.Memlet.simple('inp', subset_str='i, j, k'))
+    state.add_edge(out_map_entry, 'OUT_lap', flx_im1j_tasklet,
+                   'flx_im1j_tasklet_lap_ij',
+                   dace.Memlet.simple('lap', subset_str='i-1, j, k'))
+    state.add_edge(out_map_entry, 'OUT_lap', flx_im1j_tasklet,
+                   'flx_im1j_tasklet_lap_ip1j',
+                   dace.Memlet.simple('lap', subset_str='i, j, k'))
+
+    sdfg.add_scalar('flx_ij', dace.dtypes.float64, transient=True)
+    sdfg.add_scalar('flx_im1j', dace.dtypes.float64, transient=True)
+
+    flx_ij_access = state.add_access('flx_ij')
+    flx_im1j_access = state.add_access('flx_im1j')
+
+    state.add_edge(flx_ij_tasklet, 'flx_ij_tasklet_flx_ij', flx_ij_access,
+                   None, dace.Memlet('flx_ij'))
+    state.add_edge(flx_im1j_tasklet, 'flx_im1j_tasklet_flx_ij',
+                   flx_im1j_access, None, dace.Memlet('flx_im1j'))
+
+    state.add_edge(flx_ij_access, None, tasklet, 'out_tasklet_flx_ij',
+                   dace.Memlet('flx_ij'))
+    state.add_edge(flx_im1j_access, None, tasklet, 'out_tasklet_flx_im1j',
+                   dace.Memlet('flx_im1j'))
 
     out_map_exit.add_in_connector('IN_out')
-    state.add_edge(nested_tasklet, 'out_ij', out_map_exit, 'IN_out',
+    state.add_edge(tasklet, 'out_tasklet_out_ij', out_map_exit, 'IN_out',
                    dace.Memlet.simple('out', subset_str='i, j, k'))
 
     out_map_exit.add_out_connector('OUT_out')
     state.add_edge(
         out_map_exit, 'OUT_out', out_write, None,
         dace.Memlet.simple('out', subset_str='1:nx-1, 1:ny-1, 0:nz'))
-
-    from dace.transformation.interstate.sdfg_nesting import InlineSDFG
-    sdfg.apply_transformations_repeated(InlineSDFG)
 
     return sdfg
 
@@ -479,7 +472,30 @@ def test_horizontal_diffusion_flx_on_the_fly(horizontal_diffusion):
 
     sdfg = generate_sdfg_flx_on_the_fly()
 
+    compiled = sdfg.compile(optimizer=False)
+
+    out = np.zeros_like(ref_out)
+    compiled(inp=ref_inp,
+             coeff=ref_coeff,
+             out=out,
+             nx=out.shape[0],
+             ny=out.shape[1],
+             nz=out.shape[2])
+
+    np.testing.assert_allclose(out[2:-2, 2:-2, :], ref_out[2:-2, 2:-2, :])
+
+
+def test_horizontal_diffusion_transformed_flx_otf(horizontal_diffusion):
+    ref_inp, ref_coeff, ref_out = horizontal_diffusion
+
+    sdfg = generate_sdfg('hdiff_transformed_flx_otf')
+
+    from daceperiments.transforms import OnTheFlyMapFusion
+    sdfg.apply_transformations(OnTheFlyMapFusion, validate=True)
+    # sdfg.apply_transformations(OnTheFlyMapFusion, validate=False)
+
     sdfg.save('test.sdfg')
+    sdfg.validate()
 
     compiled = sdfg.compile(optimizer=False)
 

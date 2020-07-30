@@ -1,16 +1,23 @@
+import copy
+
 import dace
 from dace import registry, symbolic
-from dace.sdfg import nodes
+from dace.properties import Property, make_properties
+from dace.sdfg import nodes, utils as sdutils
 from dace.transformation.interstate.loop_detection import DetectLoop
 from dace.transformation.interstate.loop_unroll import LoopUnroll
 from dace.transformation.pattern_matching import Transformation
 
 
 @registry.autoregister
+@make_properties
 class BasicRegisterCache(Transformation):
     _before_state = dace.SDFGState()
     _loop_state = dace.SDFGState()
     _guard_state = dace.SDFGState()
+
+    array = Property(dtype=str,
+                     desc='Name of the array to replace by a register cache')
 
     @staticmethod
     def expressions():
@@ -81,3 +88,110 @@ class BasicRegisterCache(Transformation):
             array.shape = tuple(buffer_size if i == loop_axis else s
                                 for i, s in enumerate(array.shape))
             array.total_size = buffer_size
+
+
+@registry.autoregister_params(singlestate=True)
+class OnTheFlyMapFusion(Transformation):
+    _first_map_entry = nodes.MapEntry(nodes.Map('', [], []))
+    _first_tasklet = nodes.Tasklet('')
+    _first_map_exit = nodes.MapExit(nodes.Map('', [], []))
+    _array_access = nodes.AccessNode('')
+    _second_map_entry = nodes.MapEntry(nodes.Map('', [], []))
+    _second_tasklet = nodes.Tasklet('')
+
+    @staticmethod
+    def expressions():
+        return [
+            sdutils.node_path_graph(OnTheFlyMapFusion._first_map_entry,
+                                    OnTheFlyMapFusion._first_tasklet,
+                                    OnTheFlyMapFusion._first_map_exit,
+                                    OnTheFlyMapFusion._array_access,
+                                    OnTheFlyMapFusion._second_map_entry,
+                                    OnTheFlyMapFusion._second_tasklet)
+        ]
+
+    @staticmethod
+    def can_be_applied(graph, candidate, expr_index, sdfg, strict=False):
+        first_tasklet = graph.node(candidate[OnTheFlyMapFusion._first_tasklet])
+        array_access = graph.node(candidate[OnTheFlyMapFusion._array_access])
+        if len(first_tasklet.out_connectors) != 1:
+            return False
+
+        if (graph.in_degree(array_access) != 1
+                or graph.out_degree(array_access) != 1):
+            return False
+        return True
+
+    @staticmethod
+    def _memlet_offsets(base_memlet, offset_memlet):
+        def offset(base_range, offset_range):
+            b0, e0, s0 = base_range
+            b1, e1, s1 = offset_range
+            assert e1 - e0 == b1 - b0 and s0 == s1
+            return int(e1 - e0)
+
+        return [
+            offset(b, o) for b, o in zip(base_memlet.subset.ranges,
+                                         offset_memlet.subset.ranges)
+        ]
+
+    def apply(self, sdfg: dace.SDFG):
+        state = sdfg.node(self.state_id)
+        first_map_entry = state.node(self.subgraph[self._first_map_entry])
+        first_tasklet = state.node(self.subgraph[self._first_tasklet])
+        first_map_exit = state.node(self.subgraph[self._first_map_exit])
+        array_access = state.node(self.subgraph[self._array_access])
+        second_map_entry = state.node(self.subgraph[self._second_map_entry])
+        second_tasklet = state.node(self.subgraph[self._second_tasklet])
+
+        array_name = array_access.data
+        array = sdfg.arrays[array_name]
+
+        for edge in state.edges_between(array_access, second_map_entry):
+            state.remove_edge_and_connectors(edge)
+        write_memlet = state.edges_between(first_tasklet,
+                                           first_map_exit)[0].data
+        state.remove_node(array_access)
+
+        for edge in state.in_edges(first_map_entry):
+            if second_map_entry.add_in_connector(edge.dst_conn):
+                state.add_edge(edge.src, edge.src_conn, second_map_entry,
+                               edge.dst_conn, edge.data)
+
+        for edge in state.edges_between(second_map_entry, second_tasklet):
+            if edge.data.data == array_name:
+                replicated_tasklet = state.add_tasklet(
+                    first_tasklet.name,
+                    inputs=set(first_tasklet.in_connectors),
+                    outputs=set(first_tasklet.out_connectors),
+                    code=first_tasklet.code)
+                second_map_entry.remove_out_connector(edge.src_conn)
+                state.remove_edge(edge)
+                tmp_name = sdfg.temp_data_name()
+                sdfg.add_scalar(tmp_name, array.dtype, transient=True)
+                tmp_access = state.add_access(tmp_name)
+                state.add_edge(replicated_tasklet,
+                               next(iter(replicated_tasklet.out_connectors)),
+                               tmp_access,
+                               None,
+                               memlet=dace.Memlet(tmp_name))
+                state.add_edge(tmp_access,
+                               None,
+                               second_tasklet,
+                               edge.dst_conn,
+                               memlet=dace.Memlet(tmp_name))
+
+                offset = self._memlet_offsets(write_memlet, edge.data)
+                for input_edge in state.edges_between(first_map_entry,
+                                                      first_tasklet):
+                    memlet = copy.deepcopy(input_edge.data)
+                    memlet.subset.offset(offset, negative=False)
+                    second_map_entry.add_out_connector(input_edge.src_conn)
+                    state.add_edge(second_map_entry,
+                                   input_edge.src_conn,
+                                   replicated_tasklet,
+                                   input_edge.dst_conn,
+                                   memlet=memlet)
+
+        state.remove_nodes_from(
+            [first_map_entry, first_tasklet, first_map_exit])
