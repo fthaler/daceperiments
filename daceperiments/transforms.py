@@ -158,7 +158,7 @@ class OnTheFlyMapFusion(Transformation):
                 state.add_edge(edge.src, edge.src_conn, second_map_entry,
                                edge.dst_conn, edge.data)
 
-        for edge in state.edges_between(second_map_entry, second_tasklet):
+        for edge in state.out_edges(second_map_entry):
             if edge.data.data == array_name:
                 replicated_tasklet = state.add_tasklet(
                     first_tasklet.name,
@@ -177,7 +177,7 @@ class OnTheFlyMapFusion(Transformation):
                                memlet=dace.Memlet(tmp_name))
                 state.add_edge(tmp_access,
                                None,
-                               second_tasklet,
+                               edge.dst,
                                edge.dst_conn,
                                memlet=dace.Memlet(tmp_name))
 

@@ -492,9 +492,9 @@ def test_horizontal_diffusion_transformed_flx_otf(horizontal_diffusion):
 
     from daceperiments.transforms import OnTheFlyMapFusion
     sdfg.apply_transformations(OnTheFlyMapFusion, validate=True)
-    # sdfg.apply_transformations(OnTheFlyMapFusion, validate=False)
+    sdfg.apply_transformations(OnTheFlyMapFusion, validate=True)
+    sdfg.apply_transformations(OnTheFlyMapFusion, validate=True)
 
-    sdfg.save('test.sdfg')
     sdfg.validate()
 
     compiled = sdfg.compile(optimizer=False)
