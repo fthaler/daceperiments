@@ -51,8 +51,8 @@ def generate_sdfg(name):
 
     nested_tasklet = state.add_nested_sdfg(nested_sdfg,
                                            sdfg,
-                                           inputs={'inp'},
-                                           outputs={'out'})
+                                           inputs={'inp_column'},
+                                           outputs={'out_column'})
     map_entry, map_exit = state.add_map('map',
                                         ndrange=dict(i='0:nx', k='0:nz'))
     map_entry.map.collapse = 2
@@ -60,21 +60,21 @@ def generate_sdfg(name):
     state.add_memlet_path(inp_read,
                           map_entry,
                           nested_tasklet,
-                          dst_conn='inp',
+                          dst_conn='inp_column',
                           memlet=dace.Memlet.simple('inp',
                                                     subset_str='i, 0:ny, k'))
     state.add_memlet_path(nested_tasklet,
                           map_exit,
                           out_write,
-                          src_conn='out',
+                          src_conn='out_column',
                           memlet=dace.Memlet.simple('out',
                                                     subset_str='i, 0:ny, k'))
 
-    inp = nested_sdfg.add_array('inp', (1, ny, 1),
+    inp = nested_sdfg.add_array('inp_column', (1, ny, 1),
                                 dace.dtypes.float64,
                                 strides=inp[1].strides,
                                 total_size=inp[1].total_size)
-    out = nested_sdfg.add_array('out', (1, ny, 1),
+    out = nested_sdfg.add_array('out_column', (1, ny, 1),
                                 dace.dtypes.float64,
                                 strides=out[1].strides,
                                 total_size=out[1].total_size)
@@ -83,8 +83,8 @@ def generate_sdfg(name):
     # initial iteration
     before_state = nested_sdfg.add_state(is_start_state=True)
 
-    inp_read = before_state.add_read('inp')
-    out_write = before_state.add_write('out')
+    inp_read = before_state.add_read('inp_column')
+    out_write = before_state.add_write('out_column')
     buf_write = before_state.add_write('buf')
 
     tasklet = before_state.add_tasklet(
@@ -95,10 +95,12 @@ def generate_sdfg(name):
         'buf_write_1 = inp_read / 2; '
         'out_write = inp_read')
 
-    before_state.add_edge(inp_read, None, tasklet, 'inp_read',
-                          dace.Memlet.simple('inp', subset_str='0, 0, 0'))
-    before_state.add_edge(tasklet, 'out_write', out_write, None,
-                          dace.Memlet.simple('out', subset_str='0, 0, 0'))
+    before_state.add_edge(
+        inp_read, None, tasklet, 'inp_read',
+        dace.Memlet.simple('inp_column', subset_str='0, 0, 0'))
+    before_state.add_edge(
+        tasklet, 'out_write', out_write, None,
+        dace.Memlet.simple('out_column', subset_str='0, 0, 0'))
     before_state.add_edge(tasklet, 'buf_write_0', buf_write, None,
                           dace.Memlet.simple('buf', subset_str='0, 0, 0'))
     before_state.add_edge(tasklet, 'buf_write_1', buf_write, None,
@@ -107,9 +109,9 @@ def generate_sdfg(name):
     # second iteration
     before_state = nested_sdfg.add_state_after(before_state)
 
-    inp_read = before_state.add_read('inp')
+    inp_read = before_state.add_read('inp_column')
     buf_read = before_state.add_read('buf')
-    out_write = before_state.add_write('out')
+    out_write = before_state.add_write('out_column')
     buf_write = before_state.add_write('buf')
 
     tasklet = before_state.add_tasklet(
@@ -119,23 +121,25 @@ def generate_sdfg(name):
         code='buf_write = inp_read / 2; out_write = buf_read_1 + buf_read_0 / 4'
     )
 
-    before_state.add_edge(inp_read, None, tasklet, 'inp_read',
-                          dace.Memlet.simple('inp', subset_str='0, 1, 0'))
+    before_state.add_edge(
+        inp_read, None, tasklet, 'inp_read',
+        dace.Memlet.simple('inp_column', subset_str='0, 1, 0'))
     before_state.add_edge(buf_read, None, tasklet, 'buf_read_0',
                           dace.Memlet.simple('buf', subset_str='0, 0, 0'))
     before_state.add_edge(buf_read, None, tasklet, 'buf_read_1',
                           dace.Memlet.simple('buf', subset_str='0, 1, 0'))
-    before_state.add_edge(tasklet, 'out_write', out_write, None,
-                          dace.Memlet.simple('out', subset_str='0, 1, 0'))
+    before_state.add_edge(
+        tasklet, 'out_write', out_write, None,
+        dace.Memlet.simple('out_column', subset_str='0, 1, 0'))
     before_state.add_edge(tasklet, 'buf_write', buf_write, None,
                           dace.Memlet.simple('buf', subset_str='0, 2, 0'))
 
     # other iterations
     loop_state = nested_sdfg.add_state()
 
-    inp_read = loop_state.add_read('inp')
+    inp_read = loop_state.add_read('inp_column')
     buf_read = loop_state.add_read('buf')
-    out_write = loop_state.add_write('out')
+    out_write = loop_state.add_write('out_column')
     buf_write = loop_state.add_write('buf')
 
     tasklet = loop_state.add_tasklet(
@@ -146,7 +150,7 @@ def generate_sdfg(name):
         'out_write = buf_read_2 + buf_read_1 / 4 + buf_read_0 / 8')
 
     loop_state.add_edge(inp_read, None, tasklet, 'inp_read',
-                        dace.Memlet.simple('inp', subset_str='0, j, 0'))
+                        dace.Memlet.simple('inp_column', subset_str='0, j, 0'))
     loop_state.add_edge(buf_read, None, tasklet, 'buf_read_0',
                         dace.Memlet.simple('buf', subset_str='0, j - 2, 0'))
     loop_state.add_edge(buf_read, None, tasklet, 'buf_read_1',
@@ -154,7 +158,7 @@ def generate_sdfg(name):
     loop_state.add_edge(buf_read, None, tasklet, 'buf_read_2',
                         dace.Memlet.simple('buf', subset_str='0, j, 0'))
     loop_state.add_edge(tasklet, 'out_write', out_write, None,
-                        dace.Memlet.simple('out', subset_str='0, j, 0'))
+                        dace.Memlet.simple('out_column', subset_str='0, j, 0'))
     loop_state.add_edge(tasklet, 'buf_write', buf_write, None,
                         dace.Memlet.simple('buf', subset_str='0, j + 1, 0'))
 
@@ -162,7 +166,7 @@ def generate_sdfg(name):
     after_state = nested_sdfg.add_state()
 
     buf_read = after_state.add_read('buf')
-    out_write = after_state.add_write('out')
+    out_write = after_state.add_write('out_column')
 
     tasklet = after_state.add_tasklet(
         'loop_tasklet',
@@ -176,8 +180,9 @@ def generate_sdfg(name):
                          dace.Memlet.simple('buf', subset_str='0, ny - 2, 0'))
     after_state.add_edge(buf_read, None, tasklet, 'buf_read_2',
                          dace.Memlet.simple('buf', subset_str='0, ny - 1, 0'))
-    after_state.add_edge(tasklet, 'out_write', out_write, None,
-                         dace.Memlet.simple('out', subset_str='0, ny - 1, 0'))
+    after_state.add_edge(
+        tasklet, 'out_write', out_write, None,
+        dace.Memlet.simple('out_column', subset_str='0, ny - 1, 0'))
 
     # loop
     nested_sdfg.add_loop(before_state=before_state,
