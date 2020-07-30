@@ -120,14 +120,7 @@ class OnTheFlyMapFusion(Transformation):
             candidate[OnTheFlyMapFusion._first_map_exit])
         array_access = graph.node(candidate[OnTheFlyMapFusion._array_access])
 
-        # TODO: generalize to multiple tasklets/nodes inside first map
-        first_map_nodes = (
-            graph.all_nodes_between(first_map_entry, first_map_exit) -
-            {first_map_entry})
-        if first_map_nodes != {first_tasklet}:
-            return False
-
-        if len(first_tasklet.out_connectors) != 1:
+        if len(first_map_exit.in_connectors) != 1:
             return False
 
         if (graph.in_degree(array_access) != 1
@@ -189,8 +182,33 @@ class OnTheFlyMapFusion(Transformation):
 
         return offsets
 
-    def _replicate_tasklet(self, sdfg, array_access, first_tasklet,
-                           first_map_exit, second_map_entry):
+    @staticmethod
+    def _copy_first_map_contents(state, first_map_entry, first_map_exit):
+        nodes = list(
+            state.all_nodes_between(first_map_entry, first_map_exit) -
+            {first_map_entry})
+        new_nodes = [copy.deepcopy(node) for node in nodes]
+        for node in new_nodes:
+            state.add_node(node)
+        id_map = {
+            state.node_id(old): state.node_id(new)
+            for old, new in zip(nodes, new_nodes)
+        }
+
+        def map(node):
+            return state.node(id_map[state.node_id(node)])
+
+        for edge in state.edges():
+            if edge.src in nodes or edge.dst in nodes:
+                src = map(edge.src) if edge.src in nodes else edge.src
+                dst = map(edge.dst) if edge.dst in nodes else edge.dst
+                state.add_edge(src, edge.src_conn, dst, edge.dst_conn,
+                               copy.deepcopy(edge.data))
+
+        return new_nodes
+
+    def _replicate_first_map(self, sdfg, array_access, first_map_entry,
+                             first_map_exit, second_map_entry):
         """ Replicate tasklet of first map for reach read access in second map.
         """
         state = sdfg.node(self.state_id)
@@ -200,22 +218,29 @@ class OnTheFlyMapFusion(Transformation):
         read_offsets = self._read_offsets(state, array_name, first_map_exit,
                                           second_map_entry)
 
-        # Replicate first tasklet once for each read offset access and connect
-        # it to other tasklets accordingly
+        # Replicate first map tasklets once for each read offset access and
+        # connect them to other tasklets accordingly
         for offset, edges in read_offsets.items():
-            replicated_tasklet = copy.deepcopy(first_tasklet)
+            nodes = self._copy_first_map_contents(state, first_map_entry,
+                                                  first_map_exit)
             tmp_name = sdfg.temp_data_name()
             sdfg.add_scalar(tmp_name, array.dtype, transient=True)
             tmp_access = state.add_access(tmp_name)
-            state.add_edge(replicated_tasklet,
-                           next(iter(replicated_tasklet.out_connectors)),
-                           tmp_access, None, dace.Memlet(tmp_name))
-            for input_edge in state.in_edges(first_tasklet):
-                memlet = copy.deepcopy(input_edge.data)
-                memlet.subset.offset(list(offset), negative=False)
-                second_map_entry.add_out_connector(input_edge.src_conn)
-                state.add_edge(second_map_entry, input_edge.src_conn,
-                               replicated_tasklet, input_edge.dst_conn, memlet)
+
+            for node in nodes:
+                for edge in state.edges_between(node, first_map_exit):
+                    state.add_edge(edge.src, edge.src_conn, tmp_access, None,
+                                   dace.Memlet(tmp_name))
+                    state.remove_edge(edge)
+
+                for edge in state.edges_between(first_map_entry, node):
+                    memlet = copy.deepcopy(edge.data)
+                    memlet.subset.offset(list(offset), negative=False)
+                    second_map_entry.add_out_connector(edge.src_conn)
+                    state.add_edge(second_map_entry, edge.src_conn, node,
+                                   edge.dst_conn, memlet)
+                    state.remove_edge(edge)
+
             for edge in edges:
                 state.add_edge(tmp_access, None, edge.dst, edge.dst_conn,
                                dace.Memlet(tmp_name))
@@ -231,8 +256,9 @@ class OnTheFlyMapFusion(Transformation):
         self._update_map_connectors(state, array_access, first_map_entry,
                                     second_map_entry)
 
-        self._replicate_tasklet(sdfg, array_access, first_tasklet,
-                                first_map_exit, second_map_entry)
+        self._replicate_first_map(sdfg, array_access, first_map_entry,
+                                  first_map_exit, second_map_entry)
 
         state.remove_nodes_from(
-            [first_map_entry, first_tasklet, first_map_exit])
+            state.all_nodes_between(first_map_entry, first_map_exit) |
+            {first_map_exit})
