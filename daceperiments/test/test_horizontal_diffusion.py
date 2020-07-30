@@ -492,10 +492,49 @@ def test_horizontal_diffusion_transformed_flx_otf(horizontal_diffusion):
 
     from daceperiments.transforms import OnTheFlyMapFusion
     sdfg.apply_transformations(OnTheFlyMapFusion, validate=True)
+
+    compiled = sdfg.compile(optimizer=False)
+
+    out = np.zeros_like(ref_out)
+    compiled(inp=ref_inp,
+             coeff=ref_coeff,
+             out=out,
+             nx=out.shape[0],
+             ny=out.shape[1],
+             nz=out.shape[2])
+
+    np.testing.assert_allclose(out[2:-2, 2:-2, :], ref_out[2:-2, 2:-2, :])
+
+
+def test_horizontal_diffusion_transformed_flx_fly_otf(horizontal_diffusion):
+    ref_inp, ref_coeff, ref_out = horizontal_diffusion
+
+    sdfg = generate_sdfg('hdiff_transformed_flx_fly_otf')
+
+    from daceperiments.transforms import OnTheFlyMapFusion
     sdfg.apply_transformations(OnTheFlyMapFusion, validate=True)
     sdfg.apply_transformations(OnTheFlyMapFusion, validate=True)
 
-    sdfg.validate()
+    compiled = sdfg.compile(optimizer=False)
+
+    out = np.zeros_like(ref_out)
+    compiled(inp=ref_inp,
+             coeff=ref_coeff,
+             out=out,
+             nx=out.shape[0],
+             ny=out.shape[1],
+             nz=out.shape[2])
+
+    np.testing.assert_allclose(out[2:-2, 2:-2, :], ref_out[2:-2, 2:-2, :])
+
+
+def test_horizontal_diffusion_transformed_all_otf(horizontal_diffusion):
+    ref_inp, ref_coeff, ref_out = horizontal_diffusion
+
+    sdfg = generate_sdfg('hdiff_transformed_all_otf')
+
+    from daceperiments.transforms import OnTheFlyMapFusion
+    sdfg.apply_transformations_repeated(OnTheFlyMapFusion, validate=True)
 
     compiled = sdfg.compile(optimizer=False)
 
