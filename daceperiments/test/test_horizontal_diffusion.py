@@ -491,7 +491,7 @@ def test_horizontal_diffusion_transformed_flx_otf(horizontal_diffusion):
     sdfg = generate_sdfg('hdiff_transformed_flx_otf')
 
     from daceperiments.transforms import OnTheFlyMapFusion
-    sdfg.apply_transformations(OnTheFlyMapFusion, validate=True)
+    assert sdfg.apply_transformations(OnTheFlyMapFusion, validate=True) == 1
 
     compiled = sdfg.compile(optimizer=False)
 
@@ -512,8 +512,8 @@ def test_horizontal_diffusion_transformed_flx_fly_otf(horizontal_diffusion):
     sdfg = generate_sdfg('hdiff_transformed_flx_fly_otf')
 
     from daceperiments.transforms import OnTheFlyMapFusion
-    sdfg.apply_transformations(OnTheFlyMapFusion, validate=True)
-    sdfg.apply_transformations(OnTheFlyMapFusion, validate=True)
+    assert sdfg.apply_transformations(OnTheFlyMapFusion, validate=True) == 1
+    assert sdfg.apply_transformations(OnTheFlyMapFusion, validate=True) == 1
 
     compiled = sdfg.compile(optimizer=False)
 
@@ -534,7 +534,8 @@ def test_horizontal_diffusion_transformed_all_otf(horizontal_diffusion):
     sdfg = generate_sdfg('hdiff_transformed_all_otf')
 
     from daceperiments.transforms import OnTheFlyMapFusion
-    sdfg.apply_transformations_repeated(OnTheFlyMapFusion, validate=True)
+    assert sdfg.apply_transformations_repeated(OnTheFlyMapFusion,
+                                               validate=True) == 3
 
     compiled = sdfg.compile(optimizer=False)
 
